@@ -13,15 +13,16 @@ import ftplib
 import hashlib
 import os
 import queue
-import shutil
 import struct
 import sys
 import threading
 import tkinter as tk
 from dataclasses import dataclass, field
 from pathlib import Path
-from tkinter import filedialog, messagebox, scrolledtext, ttk
+from tkinter import messagebox, scrolledtext, ttk
 from urllib.parse import unquote, urlparse
+
+from ampr_sprx_data import AMPR_SPRX_BUNDLES
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +44,7 @@ AMPR_SPRX_VERSIONS = {
     "E37D0C2F6F1F66D0EBCBEA40FF19EA3FF98001F185089DE9B074B5A63A2B6A38"[:64].upper(): "0.2.7.4",
     "755CFA1BFFA3B65F60CCED2F162E1182D97781E200178E0E7E66B1775EF3CF4E"[:64].upper(): "0.2.7.5",
     "7C4F0C4A2C942A2DFC7AEB399434AA65AEC948825F74B32D96CB118438EE7DF8"[:64].upper(): "0.2.7.6",
+    "80CFC3775CA023514AEDC972409B64ADF6A10D72EC6BBD099F0C72F86D5B422C"[:64].upper(): "0.2.7.6-prio",
 }
 
 
@@ -526,10 +528,17 @@ class App(tk.Tk):
 
         # Versao detectada do libSceAmpr.sprx
         self.version_var = tk.StringVar(value="Versao do libSceAmpr.sprx: -")
-        ttk.Label(frm, textvariable=self.version_var).grid(row=2, column=0, sticky="w", pady=(4, 0))
-        ttk.Button(frm, text="Atualizar libSceAmpr.sprx...", command=self._update_ampr_sprx).grid(
-            row=2, column=1, padx=4, pady=(4, 0)
-        )
+        ttk.Label(frm, textvariable=self.version_var).grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 0))
+
+        # Dropdown para selecionar e aplicar versao
+        ttk.Label(frm, text="Aplicar versao do libSceAmpr.sprx:").grid(row=3, column=0, sticky="w", pady=(8, 0))
+        self.sprx_version_var = tk.StringVar()
+        version_list = sorted(AMPR_SPRX_BUNDLES.keys(), key=lambda v: [int(x) if x.isdigit() else x for x in v.replace("-", ".").split(".")])
+        self.sprx_combo = ttk.Combobox(frm, textvariable=self.sprx_version_var, values=version_list, state="readonly", width=20)
+        self.sprx_combo.grid(row=4, column=0, sticky="w")
+        if version_list:
+            self.sprx_combo.current(len(version_list) - 1)
+        ttk.Button(frm, text="Aplicar", command=self._apply_ampr_sprx).grid(row=4, column=1, padx=4)
 
         frm.columnconfigure(0, weight=1)
 
@@ -565,7 +574,7 @@ class App(tk.Tk):
         if path:
             self.root_var.set(path)
 
-    def _update_ampr_sprx(self) -> None:
+    def _apply_ampr_sprx(self) -> None:
         root_text = self.root_var.get().strip()
         if not root_text or is_ftp_url(root_text):
             messagebox.showerror("Erro", "Selecione uma pasta do jogo (Dump) local valida primeiro.")
@@ -576,23 +585,22 @@ class App(tk.Tk):
             messagebox.showerror("Erro", f"Pasta nao encontrada: {root}")
             return
 
-        src = filedialog.askopenfilename(
-            title="Selecione o novo arquivo libSceAmpr.sprx",
-            filetypes=[("Todos os arquivos", "*.*")],
-        )
-        if not src:
+        version = self.sprx_version_var.get()
+        if not version:
+            messagebox.showerror("Erro", "Selecione uma versao no dropdown.")
             return
 
+        data = AMPR_SPRX_BUNDLES[version]
         dest_dir = root / "fakelib"
         dest = dest_dir / "libSceAmpr.sprx"
         try:
             dest_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(src, dest)
+            dest.write_bytes(data)
         except OSError as exc:
-            messagebox.showerror("Erro", f"Falha ao copiar arquivo: {exc}")
+            messagebox.showerror("Erro", f"Falha ao aplicar versao: {exc}")
             return
 
-        messagebox.showinfo("Sucesso", f"Arquivo atualizado em:\n{dest}")
+        messagebox.showinfo("Sucesso", f"libSceAmpr.sprx versao {version} aplicada em:\n{dest}")
         self._on_root_changed()
 
     def _on_root_changed(self, *_args: object) -> None:
