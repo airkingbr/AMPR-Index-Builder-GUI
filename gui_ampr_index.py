@@ -540,7 +540,12 @@ class App(tk.Tk):
         # Dropdown para selecionar e aplicar versao
         ttk.Label(frm, text="Aplicar versao do libSceAmpr.sprx:").grid(row=3, column=0, sticky="w", pady=(8, 0))
         self.sprx_version_var = tk.StringVar()
-        version_list = sorted(AMPR_SPRX_BUNDLES.keys(), key=lambda v: [int(x) if x.isdigit() else x for x in v.replace("-", ".").split(".")])
+        def _ver_key(v):
+            parts = []
+            for x in v.replace("-", ".").split("."):
+                parts.append((0, int(x)) if x.isdigit() else (1, x))
+            return parts
+        version_list = sorted(AMPR_SPRX_BUNDLES.keys(), key=_ver_key)
         self.sprx_combo = ttk.Combobox(frm, textvariable=self.sprx_version_var, values=version_list, state="readonly", width=20)
         self.sprx_combo.grid(row=4, column=0, sticky="w")
         if version_list:
